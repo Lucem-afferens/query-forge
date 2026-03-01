@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QueryForge</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2a2a32;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      resize: vertical;
+      font-family: inherit;
+    }
+    textarea::placeholder { color: var(--muted); }
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .output {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .output h2 {
+      font-size: 1.1rem;
+      margin: 0 0 1rem 0;
+      font-weight: 600;
+    }
+    .output pre {
+      background: #0d0d10;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .output .error { color: var(--error); }
+    .output .success { color: var(--success); }
+    .queries-list {
+      margin-top: 1rem;
+    }
+    .query-card {
+      background: #0d0d10;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .query-card h3 { font-size: 0.95rem; margin: 0 0 0.5rem 0; }
+    .query-card .query-text {
+      background: var(--bg);
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      margin: 0.5rem 0;
+      white-space: pre-wrap;
+    }
+    .query-card .meta { color: var(--muted); font-size: 0.85rem; }
+    .copy-btn {
+      margin-top: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      background: var(--border);
+    }
+    .copy-btn:hover { background: #3a3a42; }
+    .copy-btn.copied { background: var(--success); }
+    .loading { color: var(--muted); }
+    .context-section { margin-bottom: 1.5rem; }
+    .context-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.9rem;
+      user-select: none;
+    }
+    .context-header:hover { color: var(--text); }
+    .context-header::before { content: '▶'; font-size: 0.7rem; transition: transform 0.2s; }
+    .context-section.expanded .context-header::before { transform: rotate(90deg); }
+    .context-body { display: none; margin-top: 0.5rem; }
+    .context-section.expanded .context-body { display: block; }
+    .context-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+    .context-actions .btn-small {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      background: var(--border);
+      color: var(--text);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .context-actions .btn-small:hover { background: #3a3a42; }
+    #contextDoc { min-height: 80px; }
+    .btn-demo {
+      padding: 0.75rem 1.5rem;
+      background: var(--border);
+      color: var(--text);
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .btn-demo:hover { background: #3a3a42; }
+    .plan-diff {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 600px) { .plan-diff { grid-template-columns: 1fr; } }
+    .plan-diff-card {
+      background: #0d0d10;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+    }
+    .plan-diff-card h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; }
+    .plan-diff-card.without { border-color: var(--error); }
+    .plan-diff-card.with { border-color: var(--success); }
+    .risk-list { font-size: 0.85rem; margin-top: 0.5rem; }
+    .risk-list ul { margin: 0.25rem 0 0 1rem; padding: 0; }
+    .step-meta { margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted); }
+    .step-meta div { margin: 0.25rem 0; }
+    .step-meta .label { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>QueryForge</h1>
+    <p class="subtitle">Введи запрос в стиле Sonnet — получи подзапросы для Composer</p>
+
+    <div class="context-section" id="contextSection">
+      <div class="context-header" onclick="toggleContext()">Контекст проекта (опционально)</div>
+      <div class="context-body">
+        <textarea
+          id="contextDoc"
+          placeholder="Вставь контекст или нажми «Загрузить CONTEXT.md»"
+        ></textarea>
+        <div class="context-actions">
+          <button type="button" class="btn-small" onclick="loadContextMd()">Загрузить CONTEXT.md</button>
+          <button type="button" class="btn-small" onclick="clearContext()">Очистить</button>
+        </div>
+      </div>
+    </div>
+
+    <textarea
+      id="query"
+      placeholder="Например: Добавь OAuth через Google, чтобы пользователи могли входить через аккаунт"
+    ></textarea>
+    <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+      <button id="submit" onclick="decompose()">Разбить на подзапросы</button>
+      <button type="button" class="btn-demo" onclick="loadDemo()">Демо (OAuth)</button>
+    </div>
+
+    <div id="output" class="output" style="display: none;">
+      <h2 id="output-title">Результат</h2>
+      <div id="output-content"></div>
+    </div>
+  </div>
+
+  <script>
+    const queryEl = document.getElementById('query');
+    const contextEl = document.getElementById('contextDoc');
+    const submitBtn = document.getElementById('submit');
+
+    const DEMO_QUERY = 'Добавь OAuth через Google, чтобы пользователи могли входить через аккаунт';
+
+    function loadDemo() {
+      queryEl.value = DEMO_QUERY;
+    }
+
+    async function loadContextMd() {
+      try {
+        const r = await fetch('/api/context-file');
+        const d = await r.json();
+        if (d.exists && d.content) {
+          contextEl.value = d.content;
+          saveContext();
+        }
+      } catch (e) { console.warn('CONTEXT.md не загружен:', e); }
+    }
+
+    function toggleContext() {
+      document.getElementById('contextSection').classList.toggle('expanded');
+      const stored = localStorage.getItem('contextExpanded');
+      localStorage.setItem('contextExpanded', stored === 'true' ? 'false' : 'true');
+    }
+    if (localStorage.getItem('contextExpanded') === 'true') {
+      document.getElementById('contextSection').classList.add('expanded');
+    }
+
+    function clearContext() { contextEl.value = ''; saveContext(); }
+    function saveContext() { localStorage.setItem('composerContext', contextEl.value); }
+    contextEl.addEventListener('input', saveContext);
+    if (localStorage.getItem('composerContext')) {
+      contextEl.value = localStorage.getItem('composerContext');
+    }
+    const outputEl = document.getElementById('output');
+    const outputTitle = document.getElementById('output-title');
+    const outputContent = document.getElementById('output-content');
+
+    async function decompose() {
+      const query = queryEl.value.trim();
+      if (!query) return;
+
+      submitBtn.disabled = true;
+      outputEl.style.display = 'block';
+      outputContent.innerHTML = '<p class="loading">Обработка...</p>';
+
+      try {
+        const context = contextEl.value.trim() || null;
+        const res = await fetch('/api/decompose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, context }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          outputContent.innerHTML = `<pre class="error">${data.detail || 'Ошибка запроса'}</pre>`;
+          return;
+        }
+
+        if (!data.success && data.error) {
+          outputTitle.textContent = 'Ошибка';
+          outputContent.innerHTML = `<pre class="error">${escapeHtml(data.error)}</pre>`;
+          return;
+        }
+
+        outputTitle.textContent = 'Результат';
+        renderResult(data);
+      } catch (e) {
+        outputContent.innerHTML = `<pre class="error">${escapeHtml(e.message)}</pre>`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function renderResult(data) {
+      if (data.data && data.data.composer_queries) {
+        const analysis = data.data.analysis || {};
+        const queries = data.data.composer_queries;
+        let html = '';
+
+        // Auto-plan diff
+        const needsDec = analysis.needs_decomposition !== false;
+        const stepCount = queries.length;
+        html += '<div class="plan-diff">';
+        html += '<div class="plan-diff-card without">';
+        html += '<h4>Без декомпозиции</h4>';
+        html += '<p>1 шаг — сырой запрос целиком</p>';
+        if (analysis.missing_risks?.length) {
+          html += '<div class="risk-list"><strong>Риски без декомпозиции:</strong><ul>';
+          analysis.missing_risks.forEach(r => { html += `<li>${escapeHtml(r)}</li>`; });
+          html += '</ul></div>';
+        } else {
+          html += '<p class="risk-list">Сырой запрос — непредсказуемый результат</p>';
+        }
+        html += '</div>';
+        html += '<div class="plan-diff-card with">';
+        html += `<h4>С декомпозицией</h4><p>${stepCount} шаг(ов)</p>`;
+        if (analysis.risks_covered?.length) {
+          html += '<div class="risk-list"><strong>Покрыто:</strong><ul>';
+          analysis.risks_covered.forEach(r => { html += `<li>${escapeHtml(r)}</li>`; });
+          html += '</ul></div>';
+        }
+        html += '</div></div>';
+
+        if (analysis.goal || analysis.task_type || analysis.reason) {
+          html += '<div class="query-card"><h3>Анализ</h3>';
+          html += `<p><strong>Цель:</strong> ${escapeHtml(analysis.goal || '')}</p>`;
+          if (analysis.task_type) html += `<p><strong>Тип:</strong> ${escapeHtml(analysis.task_type)}</p>`;
+          if (analysis.needs_decomposition === false) {
+            html += '<p class="success">✓ Composer справится одним запросом — разбивать не нужно</p>';
+          } else if (analysis.reason) {
+            html += `<p><strong>Почему разбиваем:</strong> ${escapeHtml(analysis.reason)}</p>`;
+          }
+          if (analysis.what_to_add_explicitly?.length) {
+            html += '<p><strong>Указать явно:</strong></p><ul>';
+            analysis.what_to_add_explicitly.forEach(s => { html += `<li>${escapeHtml(s)}</li>`; });
+            html += '</ul>';
+          }
+          html += '</div>';
+        }
+
+        queries.forEach((q, i) => {
+          html += `<div class="query-card" data-step="${q.step}">
+            <h3>Шаг ${q.step}${q.risk_level ? ` <span class="label">${q.risk_level}</span>` : ''}</h3>
+            <div class="query-text">${escapeHtml(q.query)}</div>
+            <div class="meta">Контекст: ${escapeHtml(q.context || '—')}</div>
+            <div class="meta">Готово когда: ${escapeHtml(q.done_when || '—')}</div>`;
+          if (q.depends_on?.length) html += `<div class="step-meta"><span class="label">Зависит от:</span> шаги ${q.depends_on.join(', ')}</div>`;
+          if (q.expected_artifacts?.length) {
+            html += '<div class="step-meta"><span class="label">Ожидаемые артефакты:</span><ul>';
+            q.expected_artifacts.forEach(a => { html += `<li>${escapeHtml(a)}</li>`; });
+            html += '</ul></div>';
+          }
+          if (q.verify_hint) html += `<div class="step-meta"><span class="label">Проверить:</span> ${escapeHtml(q.verify_hint)}</div>`;
+          if (q.rollback_hint) html += `<div class="step-meta"><span class="label">Откат:</span> ${escapeHtml(q.rollback_hint)}</div>`;
+          html += `<button class="copy-btn" onclick="copyQuery(${i})">Копировать</button></div>`;
+        });
+        outputContent.innerHTML = html;
+        window._queries = queries;
+      } else {
+        outputContent.innerHTML = `<pre>${escapeHtml(data.raw)}</pre>`;
+      }
+    }
+
+    function copyQuery(i) {
+      const q = window._queries?.[i];
+      if (!q) return;
+      let text = q.query;
+      if (q.context) text += '\n\nКонтекст: ' + q.context;
+      if (q.done_when) text += '\n\nГотово когда: ' + q.done_when;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector(`[data-step="${q.step}"] .copy-btn`);
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = 'Скопировано';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = orig;
+            btn.classList.remove('copied');
+          }, 1500);
+        }
+      });
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    queryEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) decompose();
+    });
+  </script>
+</body>
+</html>
