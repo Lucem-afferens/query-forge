@@ -4,6 +4,8 @@ services:
     container_name: queryforge
     ports:
       - "8001:8000"
+    volumes:
+      - ./CONTEXT.md:/app/CONTEXT.md  # хостовый файл — всегда актуальная версия
     env_file:
       - .env
     restart: unless-stopped

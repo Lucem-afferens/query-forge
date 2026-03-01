@@ -199,6 +199,10 @@
         <div class="context-actions">
           <button type="button" class="btn-small" onclick="loadContextMd()">Загрузить CONTEXT.md</button>
           <button type="button" class="btn-small" onclick="clearContext()">Очистить</button>
+          <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.85rem;">
+            <input type="checkbox" id="loadOnOpen" onchange="localStorage.setItem('loadContextOnOpen', this.checked)">
+            Загружать при открытии
+          </label>
         </div>
       </div>
     </div>
@@ -231,7 +235,7 @@
 
     async function loadContextMd() {
       try {
-        const r = await fetch('/api/context-file');
+        const r = await fetch('/api/context-file?t=' + Date.now());
         const d = await r.json();
         if (d.exists && d.content) {
           contextEl.value = d.content;
@@ -252,9 +256,15 @@
     function clearContext() { contextEl.value = ''; saveContext(); }
     function saveContext() { localStorage.setItem('composerContext', contextEl.value); }
     contextEl.addEventListener('input', saveContext);
-    if (localStorage.getItem('composerContext')) {
-      contextEl.value = localStorage.getItem('composerContext');
-    }
+    const loadOnOpenEl = document.getElementById('loadOnOpen');
+    if (loadOnOpenEl) loadOnOpenEl.checked = localStorage.getItem('loadContextOnOpen') === 'true';
+    (async function initContext() {
+      if (localStorage.getItem('loadContextOnOpen') === 'true') {
+        await loadContextMd();
+      } else if (localStorage.getItem('composerContext')) {
+        contextEl.value = localStorage.getItem('composerContext');
+      }
+    })();
     const outputEl = document.getElementById('output');
     const outputTitle = document.getElementById('output-title');
     const outputContent = document.getElementById('output-content');
