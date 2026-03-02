@@ -43,6 +43,31 @@ class DecomposeResponse(BaseModel):
 
 
 CONTEXT_FILE = Path(__file__).parent / "CONTEXT.md"
+PROMPT_TEMPLATE_FILE = Path(__file__).parent / "PROMPT_TEMPLATE.md"
+PLACEHOLDER = "[ВСТАВЬ СВОЙ ЗАПРОС СЮДА]"
+
+
+def _extract_prompt_template() -> str:
+    """Извлекает текст промпта между ``` из PROMPT_TEMPLATE.md."""
+    if not PROMPT_TEMPLATE_FILE.exists():
+        return ""
+    try:
+        text = PROMPT_TEMPLATE_FILE.read_text(encoding="utf-8")
+        if "```" in text:
+            for part in text.split("```"):
+                p = part.strip()
+                if PLACEHOLDER in p:
+                    return p
+        return text
+    except OSError:
+        return ""
+
+
+@app.get("/api/prompt-template")
+async def get_prompt_template():
+    """Возвращает шаблон промпта для ChatGPT (без API)."""
+    template = _extract_prompt_template()
+    return {"template": template, "placeholder": PLACEHOLDER}
 
 
 @app.get("/health")

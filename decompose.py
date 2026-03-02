@@ -43,14 +43,37 @@ Composer/Agent автоматически:
 
 ## Типы задач (task_type)
 
-Классифицируй задачу: Feature | Refactor | Infra | Bugfix. Это влияет на план:
+Классифицируй задачу: Feature | Refactor | Infra | Bugfix | Review. Это влияет на план:
 - **Feature** — новая функциональность (OAuth, платежи)
 - **Refactor** — переработка кода без изменения поведения
 - **Infra** — инфраструктура (Redis, миграции, CI)
 - **Bugfix** — исправление бага
+- **Review** — ревью кода, аудит, поиск багов/конфликтов по всему проекту
+
+## Задача: Code Review (task_type: Review)
+
+Если запрос про ревью, аудит, поиск багов/конфликтов по коду — это Review. **Всегда разбивай** (needs_decomposition: true): один запрос "проверь всё" приведёт к пропускам.
+
+**Разбивка по модулям:** Обязательно используй контекст проекта (структура папок). Каждый composer_query — один модуль/слой с точным @path: @auth/, @services/, @api/, @frontend/components/ и т.д. Если контекста нет — разбей по типичным слоям (auth, api, services, db, frontend, config, tests). Ни один модуль не должен остаться без шага.
+
+**Чеклист для каждого query:** Включай в текст запроса, что именно проверять. Composer не догадается — укажи явно:
+- **Безопасность:** SQL injection, XSS, секреты в коде, обход авторизации
+- **Баги:** null/undefined, race conditions, необработанные исключения, утечки памяти
+- **Производительность:** N+1 запросы, тяжёлые циклы, блокирующие операции
+- **Конфликты:** merge conflicts, конфликты версий зависимостей, несовместимые API
+- **Консистентность:** именование, паттерны, мёртвый код, дублирование
+- **Тесты:** покрытие, граничные случаи, моки
+- **Конфиг:** хардкод, env-переменные, секреты
+
+**Формат вывода:** "Return Markdown report: file:line, severity (critical/high/medium/low), finding, fix suggestion."
+
+**Пример query для Review:** "Review @backend/auth/ for: security (SQL injection, XSS, token handling), error handling, null checks. Return Markdown report: file:line, severity, finding, fix suggestion."
+
+**expected_artifacts** для Review: "Markdown report with findings", "List of bugs with locations"
 
 ## Когда НЕ разбивать (Composer справится одним запросом)
 
+- **Исключение:** Review ("ревью всего кода", "найди баги везде") — всегда разбивай по модулям.
 - Быстрые/знакомые задачи
 - Чётко определённая задача с понятной областью
 - Один или несколько связанных файлов
@@ -65,15 +88,26 @@ Composer/Agent автоматически:
 - Очень длинный горизонт (>10–15 шагов)
 - Задача затрагивает много несвязанных модулей
 
-## Задача
+## Формат подзапросов (query)
 
-Оцени: нужна ли декомпозиция? Если нет — верни один готовый запрос. Если да — разбей на подзадачи.
+Каждый query — короткий, прямой, без лишнего. Composer лучше реагирует на инструкции, чем на разговорный стиль.
+
+**Структура:** [Действие] + [Объект] + [Ограничение]. Глагол: refactor, optimize, fix, add, remove, review.
+**Длина:** 1–3 предложения. Цель в одной строке.
+**Без:** "please", "could you", "I hope" — только инструкции.
+
+**Ограничение объёма** (добавляй когда уместно): minimal changes, return only diff, lightweight reasoning — меньше токенов, быстрее.
+**Формат вывода** (если нужен): "Return only Git diff", "Return JSON", "Code block only, no explanation" — укажи явно.
+
+**Не включать:** не вставляй код — Cursor читает файлы сам. Не объясняй архитектуру/стек — Composer видит проект. Не добавляй стиль/формат, если проект уже consistent.
+
+**Пример хорошего query:** "Optimize @dbClient.ts queryUsers() for performance. Minimal changes, return only Git diff."
 
 Отвечай в JSON:
 {
   "analysis": {
     "goal": "итоговая цель",
-    "task_type": "Feature|Refactor|Infra|Bugfix",
+    "task_type": "Feature|Refactor|Infra|Bugfix|Review",
     "needs_decomposition": true/false,
     "reason": "почему разбиваем или почему не разбиваем",
     "what_to_add_explicitly": ["что Composer не найдёт сам и нужно указать явно"],
@@ -83,7 +117,7 @@ Composer/Agent автоматически:
   "composer_queries": [
     {
       "step": 1,
-      "query": "Готовый текст для Composer",
+      "query": "Короткий прямой запрос: [Действие] [Объект] [Ограничение]. 1–3 предложения.",
       "context": "@path — только если в контексте проекта есть точный путь. Иначе пусто или null.",
       "done_when": "критерий готовности",
       "risk_level": "low|medium|high",
@@ -96,6 +130,7 @@ Composer/Agent автоматически:
 }
 
 Важно:
+- query — коротко, по делу, без "please". Добавляй minimal changes / return only diff когда уместно. Для Review — включай чеклист (security, bugs, performance...) и формат отчёта в каждый query.
 - needs_decomposition: false → один запрос в composer_queries, risks_covered и missing_risks всё равно заполни
 - needs_decomposition: true → несколько запросов
 - "context" — только ключевые @ из контекста проекта. Не перечисляй файлы "на всякий случай"

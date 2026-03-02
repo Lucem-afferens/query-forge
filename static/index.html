@@ -150,6 +150,17 @@
       cursor: pointer;
     }
     .context-actions .btn-small:hover { background: #3a3a42; }
+    .context-info {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(59, 130, 246, 0.08);
+      border-radius: 6px;
+      border-left: 3px solid var(--accent);
+    }
+    .context-info strong { color: var(--text); }
+    .context-info code { font-size: 0.9em; color: var(--accent); }
     #contextDoc { min-height: 80px; }
     .btn-demo {
       padding: 0.75rem 1.5rem;
@@ -182,6 +193,17 @@
     .step-meta { margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted); }
     .step-meta div { margin: 0.25rem 0; }
     .step-meta .label { color: var(--accent); }
+    .fallback-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .fallback-steps { margin: 1rem 0; padding-left: 1.25rem; }
+    .fallback-steps li { margin: 0.5rem 0; }
+    .fallback-prompt { margin-top: 1rem; position: relative; }
+    .fallback-prompt pre { max-height: 300px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -192,6 +214,10 @@
     <div class="context-section" id="contextSection">
       <div class="context-header" onclick="toggleContext()">Контекст проекта (опционально)</div>
       <div class="context-body">
+        <div class="context-info">
+          <strong>Зачем нужен:</strong> структура папок, ключевые файлы — подзапросы будут с точными @ путями (<code>@auth/</code>, <code>@services/</code>). Без контекста — разбивка по типичным слоям, пути могут не совпасть с проектом.<br>
+          <strong>Особенно важно</strong> для ревью, аудита, поиска багов — чтобы не пропустить модули.
+        </div>
         <textarea
           id="contextDoc"
           placeholder="Вставь контекст или нажми «Загрузить CONTEXT.md»"
@@ -292,8 +318,8 @@
         }
 
         if (!data.success && data.error) {
-          outputTitle.textContent = 'Ошибка';
-          outputContent.innerHTML = `<pre class="error">${escapeHtml(data.error)}</pre>`;
+          outputTitle.textContent = 'API недоступен';
+          renderFallback(data.error, query, contextEl.value.trim());
           return;
         }
 
@@ -392,6 +418,43 @@
             btn.textContent = orig;
             btn.classList.remove('copied');
           }, 1500);
+        }
+      });
+    }
+
+    async function renderFallback(errorMsg, query, context) {
+      let html = '<div class="fallback-box"><p class="error">' + escapeHtml(errorMsg) + '</p>';
+      html += '<p><strong>Что делать:</strong></p><ol class="fallback-steps">';
+      html += '<li>Открой <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a> (модель GPT-4o)</li>';
+      html += '<li>Скопируй промпт ниже (кнопка «Скопировать»)</li>';
+      html += '<li>Вставь в ChatGPT и отправь</li></ol></div>';
+      html += '<div class="fallback-prompt"><h4>Промпт для копирования (запрос уже вставлен):</h4>';
+      outputContent.innerHTML = html + '<p class="loading">Загрузка шаблона...</p></div>';
+
+      try {
+        const r = await fetch('/api/prompt-template');
+        const d = await r.json();
+        let fullPrompt = (d.template || '').replace(d.placeholder || '[ВСТАВЬ СВОЙ ЗАПРОС СЮДА]', context
+          ? 'Контекст проекта:\n\n' + context + '\n\n---\n\nЗапрос:\n' + query
+          : query);
+        const promptBlock = '<pre id="fallbackPromptPre">' + escapeHtml(fullPrompt) + '</pre><button class="copy-btn" onclick="copyFallbackPrompt()">Скопировать промпт</button>';
+        document.querySelector('.fallback-prompt').innerHTML = '<h4>Промпт для копирования (запрос уже вставлен):</h4>' + promptBlock;
+        window._fallbackPrompt = fullPrompt;
+      } catch (e) {
+        document.querySelector('.fallback-prompt').innerHTML = '<p class="error">Не удалось загрузить шаблон. Открой PROMPT_TEMPLATE.md вручную.</p>';
+      }
+    }
+
+    function copyFallbackPrompt() {
+      const text = window._fallbackPrompt;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.fallback-prompt .copy-btn');
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = 'Скопировано';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
         }
       });
     }
