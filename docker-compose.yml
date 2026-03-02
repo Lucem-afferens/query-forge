@@ -5,7 +5,9 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - ./CONTEXT.md:/app/CONTEXT.md  # хостовый файл — всегда актуальная версия
+      # CONTEXT.md — опционально. Создай по шаблону CONTEXT_TEMPLATE.md.
+      # Если файла нет, Docker создаст пустой при первом запуске.
+      - ./CONTEXT.md:/app/CONTEXT.md
     env_file:
       - .env
     restart: unless-stopped

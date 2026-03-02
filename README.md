@@ -8,23 +8,35 @@
 
 📄 **Подробное описание:** [SERVICE_OVERVIEW.md](SERVICE_OVERVIEW.md) — проблема, механизм, сравнение «с» и «без», надёжность, слабые места и направления роста.
 
+## Быстрый старт
+
+```bash
+cp .env.example .env
+# Отредактируй .env и вставь OPENAI_API_KEY=sk-...
+touch CONTEXT.md   # обязателен перед первым docker compose (иначе монтирование упадёт)
+docker compose up -d
+```
+
+Открой в браузере: **http://localhost:8001**
+
+---
+
 ## Распаковка на другом проекте
 
-Сервис автономен. Скопируй папку `query-forge` в любой проект — больше ничего не нужно.
+Сервис автономен. Скопируй этот репозиторий в любой проект — больше ничего не нужно.
 
 **Шаги:**
 
-1. Скопировать папку `query-forge` в корень проекта (или куда удобно).
+1. Скопировать папку `query-forge` (или клонировать репозиторий) в корень проекта.
 2. Создать `.env` и вписать API-ключ:
    ```bash
-   cd query-forge
    cp .env.example .env
    # Открыть .env и вставить: OPENAI_API_KEY=sk-...
    ```
 3. Запустить: `docker compose up -d` (или `uvicorn server:app --host 0.0.0.0 --port 8000`).
 4. Открыть http://localhost:8001 (Docker) или http://localhost:8000 (uvicorn)
 
-**Опционально:** обновить/создать `CONTEXT.md` под новый проект — для более точных подзапросов. Без контекста сервис тоже работает.
+**Опционально:** создать `CONTEXT.md` по шаблону `CONTEXT_TEMPLATE.md` — для более точных подзапросов. Без контекста сервис тоже работает. Перед первым `docker compose up` выполни `touch CONTEXT.md` (или `cp CONTEXT_TEMPLATE.md CONTEXT.md`) — иначе Docker создаст директорию вместо файла и контейнер не запустится.
 
 ---
 
@@ -49,11 +61,10 @@
 ### Веб-интерфейс (Docker)
 
 ```bash
-cd query-forge
-
 # Создать .env с API-ключом
 cp .env.example .env
 # Отредактируй .env и вставь OPENAI_API_KEY=sk-...
+touch CONTEXT.md   # перед первым запуском
 
 # Запуск
 docker compose up -d
@@ -64,8 +75,6 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 # Остановка
 docker compose down
 ```
-
-Все команды выполняй из папки `query-forge`. Если ты в корне проекта, сначала: `cd query-forge`.
 
 Открой в браузере: **http://localhost:8001** (порт задаётся в `docker-compose.yml`)
 
@@ -78,7 +87,6 @@ docker compose down
 ### Веб-интерфейс (локально)
 
 ```bash
-cd query-forge
 pip install -r requirements.txt
 cp .env.example .env
 # Вставь OPENAI_API_KEY в .env
@@ -89,7 +97,6 @@ uvicorn server:app --reload --host 0.0.0.0 --port 8000
 ### CLI
 
 ```bash
-cd query-forge
 pip install -r requirements.txt
 export OPENAI_API_KEY="sk-..."
 
@@ -158,7 +165,7 @@ python decompose.py "Добавь OAuth через Google в наше прило
 
 Для более точных подзапросов загружай **контекст** — описание структуры, стека, ключевых файлов.
 
-- **Загрузить CONTEXT.md** — подставляет `query-forge/CONTEXT.md` из папки сервиса
+- **Загрузить CONTEXT.md** — подставляет `CONTEXT.md` из папки сервиса
 - Или вставь текст вручную
 
 Создай `CONTEXT.md` по шаблону `CONTEXT_TEMPLATE.md`. Контекст сохраняется в браузере (localStorage).

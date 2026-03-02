@@ -1,5 +1,6 @@
 .env
 .git
+CONTEXT.md
 __pycache__
 *.pyc
 .venv

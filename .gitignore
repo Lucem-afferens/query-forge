@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+CONTEXT.md
 
 # Python
 __pycache__/
