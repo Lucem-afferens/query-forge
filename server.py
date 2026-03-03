@@ -5,6 +5,7 @@ QueryForge — веб-сервер.
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +35,7 @@ class DecomposeRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=MAX_QUERY_LENGTH)
     context: str | None = Field(None, max_length=MAX_CONTEXT_LENGTH)
     language: str = Field(default="ru", description="Код языка ISO 639-1 (ru, en, da, zh, ...)")
+    api_key: str | None = Field(None, description="OpenAI API key (для облачной версии; локально — из .env)")
 
 
 class DecomposeResponse(BaseModel):
@@ -44,6 +46,7 @@ class DecomposeResponse(BaseModel):
 
 
 CONTEXT_FILE = Path(__file__).parent / "CONTEXT.md"
+CONTEXT_TEMPLATE_FILE = Path(__file__).parent / "CONTEXT_TEMPLATE.md"
 PROMPT_TEMPLATE_FILE = Path(__file__).parent / "PROMPT_TEMPLATE.md"
 PLACEHOLDER = "[ВСТАВЬ СВОЙ ЗАПРОС СЮДА]"
 
@@ -66,9 +69,12 @@ def _extract_prompt_template() -> str:
 
 @app.get("/api/languages")
 async def get_languages():
-    """Список языков (ISO 639-1) для переключателя."""
+    """Список языков (ISO 639-1) для переключателя и режим деплоя."""
     from languages import LANGUAGES
-    return {"languages": [{"code": k, "name": v} for k, v in sorted(LANGUAGES.items(), key=lambda x: x[1])]}
+    return {
+        "languages": [{"code": k, "name": v} for k, v in sorted(LANGUAGES.items(), key=lambda x: x[1])],
+        "deployment": "vercel" if _is_vercel() else "local",
+    }
 
 
 @app.get("/api/prompt-template")
@@ -78,15 +84,39 @@ async def get_prompt_template():
     return {"template": template, "placeholder": PLACEHOLDER}
 
 
+def _is_vercel() -> bool:
+    """Проверка, что сервис запущен на Vercel."""
+    return os.environ.get("VERCEL") == "1"
+
+
 @app.get("/health")
 async def health():
     """Проверка работоспособности сервиса."""
-    return {"status": "ok", "service": "QueryForge"}
+    return {
+        "status": "ok",
+        "service": "QueryForge",
+        "deployment": "vercel" if _is_vercel() else "local",
+    }
+
+
+@app.get("/api/context-template")
+async def get_context_template():
+    """Возвращает шаблон CONTEXT_TEMPLATE.md для облачной версии."""
+    if not CONTEXT_TEMPLATE_FILE.exists():
+        return {"content": None}
+    try:
+        content = CONTEXT_TEMPLATE_FILE.read_text(encoding="utf-8")
+        return {"content": content}
+    except OSError as e:
+        logger.warning("Cannot read CONTEXT_TEMPLATE.md: %s", e)
+        return {"content": None}
 
 
 @app.get("/api/context-file")
 async def get_context_file():
-    """Проверка наличия CONTEXT.md и его содержимое."""
+    """Проверка наличия CONTEXT.md и его содержимое. На Vercel — всегда exists: false (нет доступа к файловой системе проекта)."""
+    if _is_vercel():
+        return {"exists": False, "content": None, "deployment": "vercel"}
     if not CONTEXT_FILE.exists():
         return {"exists": False, "content": None}
     try:
@@ -115,8 +145,9 @@ async def api_decompose(req: DecomposeRequest):
 
     context = (req.context or "").strip() or None
     language = (req.language or "ru").strip().lower() or "ru"
+    api_key = (req.api_key or "").strip() or None
     try:
-        raw = decompose(query, context=context, language=language)
+        raw = decompose(query, api_key=api_key, context=context, language=language)
     except Exception as e:
         logger.exception("Decompose failed")
         return DecomposeResponse(

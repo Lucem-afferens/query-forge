@@ -172,6 +172,8 @@
       cursor: pointer;
     }
     .btn-demo:hover { background: #3a3a42; }
+    .demo-hint { color: var(--muted); font-size: 0.85rem; }
+    @media (max-width: 600px) { .demo-hint { display: none !important; } }
     .plan-diff {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -204,6 +206,39 @@
     .fallback-steps li { margin: 0.5rem 0; }
     .fallback-prompt { margin-top: 1rem; position: relative; }
     .fallback-prompt pre { max-height: 300px; overflow-y: auto; }
+    .api-key-section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+    }
+    .api-key-section label { font-size: 0.9rem; color: var(--muted); display: block; margin-bottom: 0.5rem; }
+    .api-key-section input[type="password"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    .api-key-section input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .vercel-notice {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding: 0.75rem 1rem;
+      background: rgba(245, 158, 11, 0.08);
+      border-left: 3px solid #f59e0b;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+    .vercel-notice strong { color: var(--text); }
+    .vercel-notice a { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -211,9 +246,18 @@
     <h1>QueryForge</h1>
     <p class="subtitle">Введи запрос в стиле Sonnet — получи подзапросы для Composer</p>
 
+    <div class="api-key-section" id="apiKeySection" style="display: none;">
+      <label for="apiKey">OpenAI API Key <span style="color: var(--muted);">(sk-...)</span></label>
+      <input type="password" id="apiKey" placeholder="Вставьте ключ с platform.openai.com" autocomplete="off">
+      <p style="font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem;">Ключ хранится только в браузере (localStorage) и не передаётся на сторонние серверы.</p>
+    </div>
+
     <div class="context-section" id="contextSection">
       <div class="context-header" onclick="toggleContext()">Контекст проекта (опционально)</div>
       <div class="context-body">
+        <div class="vercel-notice" id="vercelContextNotice" style="display: none;">
+          <strong>Облачная версия (Vercel):</strong> контекст не подтягивается автоматически. Вставьте контекст вручную по структуре из <button type="button" class="btn-small" onclick="showContextTemplate()" style="margin: 0 0.25rem;">CONTEXT_TEMPLATE.md</button> (см. раздел «Контекст проекта» в README).
+        </div>
         <div class="context-info">
           <strong>Зачем нужен:</strong> структура папок, ключевые файлы — подзапросы будут с точными @ путями (<code>@auth/</code>, <code>@services/</code>). Без контекста — разбивка по типичным слоям, пути могут не совпасть с проектом.<br>
           <strong>Особенно важно</strong> для ревью, аудита, поиска багов — чтобы не пропустить модули.
@@ -223,7 +267,7 @@
           placeholder="Вставь контекст или нажми «Загрузить CONTEXT.md»"
         ></textarea>
         <div class="context-actions">
-          <button type="button" class="btn-small" onclick="loadContextMd()">Загрузить CONTEXT.md</button>
+          <button type="button" class="btn-small" id="loadContextBtn" onclick="loadContextMd()">Загрузить CONTEXT.md</button>
           <button type="button" class="btn-small" onclick="clearContext()">Очистить</button>
           <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.85rem;">
             <input type="checkbox" id="loadOnOpen" onchange="localStorage.setItem('loadContextOnOpen', this.checked)">
@@ -239,7 +283,10 @@
     ></textarea>
     <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center;">
       <button id="submit" onclick="decompose()">Разбить на подзапросы</button>
-      <button type="button" class="btn-demo" onclick="loadDemo()">Демо (подписка)</button>
+      <span style="display: flex; align-items: center; gap: 0.5rem;">
+        <button type="button" class="btn-demo" onclick="loadDemo()" title="Показать пример результата без вызова API — для ознакомления">Демо (подписка)</button>
+        <span class="demo-hint" title="Показать пример результата без вызова API">— для ознакомления с примерным результатом, без расхода токенов</span>
+      </span>
       <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.9rem;">
         Язык ответа:
         <select id="language" onchange="localStorage.setItem('responseLanguage', this.value)" style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.4rem 0.6rem; font-size: 0.9rem; min-width: 140px;">
@@ -259,6 +306,7 @@
     const queryEl = document.getElementById('query');
     const contextEl = document.getElementById('contextDoc');
     const submitBtn = document.getElementById('submit');
+    let DEPLOYMENT = 'local';
 
     const DEMO_QUERY = 'Хочу добавить подписку как в Netflix — месячная оплата картой, пробный период 7 дней, возможность отменить. Юзер выбирает план на странице, платит, и получает доступ к премиум-разделу. Не знаю с чего начать.';
 
@@ -322,15 +370,26 @@
     const loadOnOpenEl = document.getElementById('loadOnOpen');
     if (loadOnOpenEl) loadOnOpenEl.checked = localStorage.getItem('loadContextOnOpen') === 'true';
     (async function initContext() {
-      if (localStorage.getItem('loadContextOnOpen') === 'true') {
-        await loadContextMd();
-      } else if (localStorage.getItem('composerContext')) {
-        contextEl.value = localStorage.getItem('composerContext');
-      }
-      // Загрузка списка языков (ISO 639-1)
       try {
         const r = await fetch('/api/languages');
         const d = await r.json();
+        DEPLOYMENT = d.deployment || 'local';
+        if (DEPLOYMENT === 'vercel') {
+          document.getElementById('apiKeySection').style.display = 'block';
+          document.getElementById('vercelContextNotice').style.display = 'block';
+          const loadBtn = document.getElementById('loadContextBtn');
+          if (loadBtn) loadBtn.style.display = 'none';
+          const apiKeyEl = document.getElementById('apiKey');
+          if (apiKeyEl) {
+            if (localStorage.getItem('openaiApiKey')) apiKeyEl.value = localStorage.getItem('openaiApiKey');
+            apiKeyEl.addEventListener('input', () => localStorage.setItem('openaiApiKey', apiKeyEl.value));
+          }
+        }
+        if (localStorage.getItem('loadContextOnOpen') === 'true' && DEPLOYMENT !== 'vercel') {
+          await loadContextMd();
+        } else if (localStorage.getItem('composerContext')) {
+          contextEl.value = localStorage.getItem('composerContext');
+        }
         const langEl = document.getElementById('language');
         if (langEl && d.languages?.length) {
           const saved = localStorage.getItem('responseLanguage') || 'ru';
@@ -339,8 +398,20 @@
           ).join('');
           if (saved && !d.languages.find(l => l.code === saved)) langEl.value = d.languages[0]?.code || 'ru';
         }
-      } catch (e) { console.warn('Языки не загружены:', e); }
+      } catch (e) { console.warn('Инициализация не загружена:', e); }
     })();
+
+    async function showContextTemplate() {
+      try {
+        const r = await fetch('/api/context-template');
+        const d = await r.json();
+        if (d.content) {
+          const w = window.open('', '_blank', 'width=700,height=600,scrollbars=yes');
+          w.document.write('<pre style="padding:1rem;font-family:monospace;white-space:pre-wrap;background:#1a1a1f;color:#e4e4e7;">' + escapeHtml(d.content) + '</pre>');
+          w.document.close();
+        } else alert('Шаблон недоступен.');
+      } catch (e) { alert('Не удалось загрузить шаблон.'); }
+    }
     const outputEl = document.getElementById('output');
     const outputTitle = document.getElementById('output-title');
     const outputContent = document.getElementById('output-content');
@@ -348,6 +419,14 @@
     async function decompose() {
       const query = queryEl.value.trim();
       if (!query) return;
+      if (DEPLOYMENT === 'vercel') {
+        const apiKeyEl = document.getElementById('apiKey');
+        if (!apiKeyEl || !apiKeyEl.value.trim()) {
+          outputEl.style.display = 'block';
+          outputContent.innerHTML = '<p class="error">Введите OpenAI API Key в поле выше. Ключ можно получить на <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>';
+          return;
+        }
+      }
 
       submitBtn.disabled = true;
       outputEl.style.display = 'block';
@@ -356,10 +435,14 @@
       try {
         const context = contextEl.value.trim() || null;
         const language = document.getElementById('language').value || 'ru';
+        const apiKeyEl = document.getElementById('apiKey');
+        const apiKey = (apiKeyEl && apiKeyEl.value.trim()) || null;
+        const body = { query, context, language };
+        if (apiKey) body.api_key = apiKey;
         const res = await fetch('/api/decompose', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, context, language }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
 
