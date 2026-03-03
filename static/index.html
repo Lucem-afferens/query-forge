@@ -423,7 +423,12 @@
         const apiKeyEl = document.getElementById('apiKey');
         if (!apiKeyEl || !apiKeyEl.value.trim()) {
           outputEl.style.display = 'block';
-          outputContent.innerHTML = '<p class="error">Введите OpenAI API Key в поле выше. Ключ можно получить на <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.</p>';
+          outputTitle.textContent = 'Без API-ключа — используйте ChatGPT';
+          renderFallback(
+            'Введите OpenAI API Key в поле выше для разбивки здесь. Или скопируйте промпт ниже в ChatGPT (GPT-4o) — ответ будет в том же формате, готовый для Cursor.',
+            query,
+            contextEl.value.trim()
+          );
           return;
         }
       }
