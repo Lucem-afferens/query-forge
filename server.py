@@ -138,7 +138,7 @@ async def index():
 
 @app.post("/api/decompose", response_model=DecomposeResponse)
 async def api_decompose(req: DecomposeRequest):
-    """Декомпозиция запроса. Возвращает план подзапросов для Composer."""
+    """Декомпозиция запроса. Возвращает план подзапросов для Composer/Agent."""
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Запрос не может быть пустым")

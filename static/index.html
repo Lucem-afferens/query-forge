@@ -244,7 +244,7 @@
 <body>
   <div class="container">
     <h1>QueryForge</h1>
-    <p class="subtitle">Введи запрос в стиле Sonnet — получи подзапросы для Composer</p>
+    <p class="subtitle">Введи запрос свободно — получи подзапросы для Composer/Agent</p>
 
     <div class="api-key-section" id="apiKeySection" style="display: none;">
       <label for="apiKey">OpenAI API Key <span style="color: var(--muted);">(sk-...)</span></label>
@@ -501,7 +501,7 @@
           html += `<p><strong>Цель:</strong> ${escapeHtml(analysis.goal || '')}</p>`;
           if (analysis.task_type) html += `<p><strong>Тип:</strong> ${escapeHtml(analysis.task_type)}</p>`;
           if (analysis.needs_decomposition === false) {
-            html += '<p class="success">✓ Composer справится одним запросом — разбивать не нужно</p>';
+            html += '<p class="success">✓ Модель справится одним запросом — разбивать не нужно</p>';
           } else if (analysis.reason) {
             html += `<p><strong>Почему разбиваем:</strong> ${escapeHtml(analysis.reason)}</p>`;
           }
