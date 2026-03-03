@@ -33,6 +33,7 @@ if STATIC_DIR.exists():
 class DecomposeRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=MAX_QUERY_LENGTH)
     context: str | None = Field(None, max_length=MAX_CONTEXT_LENGTH)
+    language: str = Field(default="ru", description="Код языка ISO 639-1 (ru, en, da, zh, ...)")
 
 
 class DecomposeResponse(BaseModel):
@@ -61,6 +62,13 @@ def _extract_prompt_template() -> str:
         return text
     except OSError:
         return ""
+
+
+@app.get("/api/languages")
+async def get_languages():
+    """Список языков (ISO 639-1) для переключателя."""
+    from languages import LANGUAGES
+    return {"languages": [{"code": k, "name": v} for k, v in sorted(LANGUAGES.items(), key=lambda x: x[1])]}
 
 
 @app.get("/api/prompt-template")
@@ -106,8 +114,9 @@ async def api_decompose(req: DecomposeRequest):
         raise HTTPException(status_code=400, detail="Запрос не может быть пустым")
 
     context = (req.context or "").strip() or None
+    language = (req.language or "ru").strip().lower() or "ru"
     try:
-        raw = decompose(query, context=context)
+        raw = decompose(query, context=context, language=language)
     except Exception as e:
         logger.exception("Decompose failed")
         return DecomposeResponse(

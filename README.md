@@ -100,7 +100,7 @@ uvicorn server:app --reload --host 0.0.0.0 --port 8000
 pip install -r requirements.txt
 export OPENAI_API_KEY="sk-..."
 
-python decompose.py "Добавь OAuth через Google в наше приложение"
+python decompose.py "Хочу добавить подписку — месячная оплата, пробный период, отмена"
 ```
 
 Вывод — JSON с `composer_queries`: готовые тексты для копирования в Composer.
@@ -159,7 +159,7 @@ python decompose.py "Добавь OAuth через Google в наше прило
 
 - **query** — готовый текст для Composer. Копируй и вставляй.
 - **Auto-plan diff** — в веб-интерфейсе показывается сравнение «без декомпозиции» vs «с декомпозицией» и риски.
-- **Демо** — кнопка «Демо (OAuth)» подставляет пример запроса для быстрого теста.
+- **Демо** — кнопка «Демо (подписка)» показывает предзагруженный результат без вызова API (экономия токенов). Обновить ответ: `python decompose.py "демо-запрос"` и вставить JSON в `DEMO_RESPONSE` в `static/index.html`.
 
 ## Контекст проекта
 

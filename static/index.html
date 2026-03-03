@@ -235,11 +235,18 @@
 
     <textarea
       id="query"
-      placeholder="Например: Добавь OAuth через Google, чтобы пользователи могли входить через аккаунт"
+      placeholder="Например: Хочу добавить подписку как в Netflix — месячная оплата, пробный период, отмена"
     ></textarea>
-    <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+    <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center;">
       <button id="submit" onclick="decompose()">Разбить на подзапросы</button>
-      <button type="button" class="btn-demo" onclick="loadDemo()">Демо (OAuth)</button>
+      <button type="button" class="btn-demo" onclick="loadDemo()">Демо (подписка)</button>
+      <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.9rem;">
+        Язык ответа:
+        <select id="language" onchange="localStorage.setItem('responseLanguage', this.value)" style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.4rem 0.6rem; font-size: 0.9rem; min-width: 140px;">
+          <option value="ru" selected>Русский</option>
+          <!-- заполняется из /api/languages -->
+        </select>
+      </label>
     </div>
 
     <div id="output" class="output" style="display: none;">
@@ -253,10 +260,40 @@
     const contextEl = document.getElementById('contextDoc');
     const submitBtn = document.getElementById('submit');
 
-    const DEMO_QUERY = 'Добавь OAuth через Google, чтобы пользователи могли входить через аккаунт';
+    const DEMO_QUERY = 'Хочу добавить подписку как в Netflix — месячная оплата картой, пробный период 7 дней, возможность отменить. Юзер выбирает план на странице, платит, и получает доступ к премиум-разделу. Не знаю с чего начать.';
+
+    // Предзагруженный ответ — без расхода токенов при демо. Обновить: python decompose.py "..." > demo_response.json
+    const DEMO_RESPONSE = {
+      success: true,
+      raw: '',
+      data: {
+        analysis: {
+          goal: 'Система подписок с месячной оплатой, пробным периодом 7 дней и отменой. Пользователь выбирает план, платит картой, получает доступ к премиум-контенту.',
+          task_type: 'Feature',
+          needs_decomposition: true,
+          reason: 'Задача затрагивает: платежи (Stripe/API), БД (подписки, планы), UI (страница планов, checkout), контроль доступа, webhooks. Несколько несвязанных модулей — разбиваем.',
+          what_to_add_explicitly: ['env для Stripe (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET)', 'миграции для подписок', 'endpoint для webhook'],
+          risks_covered: ['env и секреты', 'миграции БД', 'UI страница планов', 'контроль доступа к премиум', 'webhook-и для событий оплаты'],
+          missing_risks: []
+        },
+        composer_queries: [
+          { step: 1, query: 'Изучи структуру auth и биллинга в проекте. Определи, где хранятся пользователи и как проверяется доступ.', context: null, done_when: 'Понятна структура auth и наличие/отсутствие биллинга', risk_level: 'low', depends_on: [], rollback_hint: '—', expected_artifacts: ['Понимание структуры'], verify_hint: '—' },
+          { step: 2, query: 'Добавь модели и миграции для подписок: plan (name, price_id, interval), subscription (user_id, plan_id, status, trial_ends_at, stripe_subscription_id).', context: null, done_when: 'Миграции применены, модели созданы', risk_level: 'medium', depends_on: [1], rollback_hint: 'Откатить миграции', expected_artifacts: ['файл миграции', 'модели'], verify_hint: 'python manage.py migrate' },
+          { step: 3, query: 'Интегрируй Stripe: создай products/prices в Stripe, добавь env STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET. Реализуй создание сессии оформления заказа для выбранного плана.', context: null, done_when: 'Сессия оформления создаётся, редирект на Stripe работает', risk_level: 'high', depends_on: [2], rollback_hint: 'Удалить Stripe-код и env', expected_artifacts: ['сервис Stripe', 'endpoint оформления', 'env vars'], verify_hint: 'grep STRIPE .env' },
+          { step: 4, query: 'Добавь webhook endpoint для Stripe (checkout.session.completed, customer.subscription.updated, deleted). Обновляй подписку в БД при событиях.', context: null, done_when: 'Webhook обрабатывает события, подписка обновляется', risk_level: 'high', depends_on: [3], rollback_hint: 'Удалить обработчик webhook', expected_artifacts: ['роут webhook', 'логика обновления подписки'], verify_hint: 'Stripe CLI: stripe listen --forward' },
+          { step: 5, query: 'Создай страницу выбора плана: список планов с ценой, кнопка «Оформить» → оформление. Добавь пробный период 7 дней при создании подписки.', context: null, done_when: 'Страница планов отображается, оформление запускается с пробным периодом', risk_level: 'medium', depends_on: [3], rollback_hint: 'Удалить страницу', expected_artifacts: ['страница /plans', 'пробный период в Stripe'], verify_hint: 'Проверить trial_period_days в API' },
+          { step: 6, query: 'Добавь проверку доступа к премиум-разделу: middleware или guard, проверяющий status подписки (active или trial). Редирект на /plans если нет подписки.', context: null, done_when: 'Премиум-контент доступен только с активной подпиской', risk_level: 'medium', depends_on: [2, 4], rollback_hint: 'Убрать проверку', expected_artifacts: ['guard/middleware', 'логика редиректа'], verify_hint: 'Проверить доступ без подписки' },
+          { step: 7, query: 'Добавь возможность отмены: страница «Моя подписка» с кнопкой «Отменить». Вызов Stripe API для отмены, обновление статуса в БД.', context: null, done_when: 'Пользователь может отменить подписку, доступ отзывается', risk_level: 'low', depends_on: [4, 6], rollback_hint: 'Удалить кнопку отмены', expected_artifacts: ['endpoint отмены', 'кнопка в UI'], verify_hint: 'Проверить подписку после отмены' }
+        ]
+      },
+      error: null
+    };
 
     function loadDemo() {
       queryEl.value = DEMO_QUERY;
+      outputEl.style.display = 'block';
+      outputTitle.textContent = 'Результат (демо — без API)';
+      renderResult(DEMO_RESPONSE);
     }
 
     async function loadContextMd() {
@@ -290,6 +327,19 @@
       } else if (localStorage.getItem('composerContext')) {
         contextEl.value = localStorage.getItem('composerContext');
       }
+      // Загрузка списка языков (ISO 639-1)
+      try {
+        const r = await fetch('/api/languages');
+        const d = await r.json();
+        const langEl = document.getElementById('language');
+        if (langEl && d.languages?.length) {
+          const saved = localStorage.getItem('responseLanguage') || 'ru';
+          langEl.innerHTML = d.languages.map(l => 
+            `<option value="${l.code}"${l.code === saved ? ' selected' : ''}>${l.name}</option>`
+          ).join('');
+          if (saved && !d.languages.find(l => l.code === saved)) langEl.value = d.languages[0]?.code || 'ru';
+        }
+      } catch (e) { console.warn('Языки не загружены:', e); }
     })();
     const outputEl = document.getElementById('output');
     const outputTitle = document.getElementById('output-title');
@@ -305,10 +355,11 @@
 
       try {
         const context = contextEl.value.trim() || null;
+        const language = document.getElementById('language').value || 'ru';
         const res = await fetch('/api/decompose', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, context }),
+          body: JSON.stringify({ query, context, language }),
         });
         const data = await res.json();
 
